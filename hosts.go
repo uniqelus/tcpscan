@@ -99,12 +99,23 @@ func (hs Hosts) resolve(ctx context.Context, lookup lookupFunc) ([]target, error
 			continue
 		}
 
+		resolved := 0
+		seenAddrs := make(map[netip.Addr]struct{}, len(addrs))
 		for _, addr := range addrs {
 			ip, err := netip.ParseAddr(addr)
 			if err != nil {
 				continue
 			}
-			targets = append(targets, target{host: h.raw, ip: ip.Unmap()})
+			ip = ip.Unmap()
+			if _, dup := seenAddrs[ip]; dup {
+				continue
+			}
+			seenAddrs[ip] = struct{}{}
+			targets = append(targets, target{host: h.raw, ip: ip})
+			resolved++
+		}
+		if resolved == 0 {
+			errs = append(errs, fmt.Errorf("%w: %s", ErrHostUnresolvable, h.raw))
 		}
 	}
 
