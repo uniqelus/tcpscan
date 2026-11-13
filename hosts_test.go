@@ -204,3 +204,24 @@ func TestHosts_Resolve_DifferentNamesWithSameAddressAreKept(t *testing.T) {
 	}
 	assert.Equal(t, want, targets)
 }
+
+func TestHosts_Resolve_DeduplicatesAddressesAndSkipsInvalidOnes(t *testing.T) {
+	lookup := func(_ context.Context, _ string) ([]string, error) {
+		return []string{"1.2.3.4", "invalid", "1.2.3.4", "::ffff:1.2.3.4"}, nil
+	}
+
+	targets, err := NewHosts("example.com").resolve(context.Background(), lookup)
+	require.NoError(t, err)
+	assert.Equal(t, []target{{host: "example.com", ip: netip.MustParseAddr("1.2.3.4")}}, targets)
+}
+
+func TestHosts_Resolve_OnlyInvalidAddresses(t *testing.T) {
+	lookup := func(_ context.Context, _ string) ([]string, error) {
+		return []string{"invalid"}, nil
+	}
+
+	targets, err := NewHosts("example.com").resolve(context.Background(), lookup)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrHostUnresolvable)
+	assert.Empty(t, targets)
+}

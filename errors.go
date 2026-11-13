@@ -14,4 +14,8 @@ var (
 	ErrEmptyHost        = errors.New("empty host")
 	ErrEmptyHostList    = errors.New("empty host list")
 	ErrHostUnresolvable = errors.New("host is unresolvable")
+
+	ErrInvalidConcurrency    = errors.New("concurrency must be greater than zero")
+	ErrInvalidConnectTimeout = errors.New("connect timeout must be greater than zero")
+	ErrNilOption             = errors.New("nil scanner option")
 )
