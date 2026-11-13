@@ -43,3 +43,36 @@ type GenerationExample_Expecter struct {
 func (_m *GenerationExample) EXPECT() *GenerationExample_Expecter {
 	return &GenerationExample_Expecter{mock: &_m.Mock}
 }
+
+// ExampleMethod provides a mock function for the type GenerationExample
+func (_mock *GenerationExample) ExampleMethod() {
+	_mock.Called()
+	return
+}
+
+// GenerationExample_ExampleMethod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExampleMethod'
+type GenerationExample_ExampleMethod_Call struct {
+	*mock.Call
+}
+
+// ExampleMethod is a helper method to define mock.On call
+func (_e *GenerationExample_Expecter) ExampleMethod() *GenerationExample_ExampleMethod_Call {
+	return &GenerationExample_ExampleMethod_Call{Call: _e.mock.On("ExampleMethod")}
+}
+
+func (_c *GenerationExample_ExampleMethod_Call) Run(run func()) *GenerationExample_ExampleMethod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *GenerationExample_ExampleMethod_Call) Return() *GenerationExample_ExampleMethod_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *GenerationExample_ExampleMethod_Call) RunAndReturn(run func()) *GenerationExample_ExampleMethod_Call {
+	_c.Run(run)
+	return _c
+}
