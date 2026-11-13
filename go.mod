@@ -1,6 +1,6 @@
 module github.com/uniqelus/tcpscan
 
-go 1.27.3
+go 1.25.5
 
 require github.com/stretchr/testify v1.12.1
 
