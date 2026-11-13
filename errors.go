@@ -10,4 +10,8 @@ var (
 	ErrReversedPortRange = errors.New("port range in a reversed order")
 	ErrEmptyPortList     = errors.New("empty port list")
 	ErrNilPortSet        = errors.New("nil port set")
+
+	ErrEmptyHost        = errors.New("empty host")
+	ErrEmptyHostList    = errors.New("empty host list")
+	ErrHostUnresolvable = errors.New("host is unresolvable")
 )
