@@ -231,3 +231,77 @@ func TestPortSet_ImpliesInterface(t *testing.T) {
 		assert.NotEmpty(t, set.ranges())
 	}
 }
+
+func TestNormalize(t *testing.T) {
+	tests := []struct {
+		name string
+		set  PortSet
+		want []Range
+	}{
+		{
+			name: "single range unchanged",
+			set:  NewRange(8000, 8080),
+			want: []Range{{from: 8000, to: 8080}},
+		},
+		{
+			name: "ports are sorted and deduplicated",
+			set:  NewPorts(443, 80, 80, 22),
+			want: []Range{{from: 22, to: 22}, {from: 80, to: 80}, {from: 443, to: 443}},
+		},
+		{
+			name: "adjacent ports are merged",
+			set:  NewPorts(80, 81, 82),
+			want: []Range{{from: 80, to: 82}},
+		},
+		{
+			name: "overlapping ranges are merged",
+			set:  NewUnion(NewRange(1, 100), NewRange(50, 200)),
+			want: []Range{{from: 1, to: 200}},
+		},
+		{
+			name: "adjacent ranges are merged",
+			set:  NewUnion(NewRange(1, 10), NewRange(11, 20)),
+			want: []Range{{from: 1, to: 20}},
+		},
+		{
+			name: "contained range is absorbed",
+			set:  NewUnion(NewRange(1, 100), NewRange(20, 30)),
+			want: []Range{{from: 1, to: 100}},
+		},
+		{
+			name: "ports overlapping a range are absorbed",
+			set:  NewUnion(NewRange(80, 90), NewPorts(80, 85, 91, 200)),
+			want: []Range{{from: 80, to: 91}, {from: 200, to: 200}},
+		},
+		{
+			name: "mixed nested union",
+			set: NewUnion(
+				NewPorts(443, 22),
+				NewRange(100, 200),
+				NewUnion(NewRange(150, 300), NewPorts(22, 80)),
+			),
+			want: []Range{{from: 22, to: 22}, {from: 80, to: 80}, {from: 100, to: 300}, {from: 443, to: 443}},
+		},
+		{
+			name: "upper boundary does not overflow",
+			set:  NewUnion(NewRange(65530, 65535), NewPorts(65535)),
+			want: []Range{{from: 65530, to: 65535}},
+		},
+		{
+			name: "empty set",
+			set:  NewUnion(),
+			want: []Range{},
+		},
+		{
+			name: "nil set",
+			set:  nil,
+			want: []Range{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, normalize(tt.set))
+		})
+	}
+}

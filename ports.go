@@ -1,8 +1,10 @@
 package tcpscan
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type port int
@@ -125,4 +127,32 @@ func (u Union) ranges() []Range {
 	}
 
 	return ranges
+}
+
+// normalize flattens a port set into sorted, non-overlapping ranges:
+// duplicate ports and overlapping or adjacent ranges are merged.
+func normalize(set PortSet) []Range {
+	if set == nil {
+		return []Range{}
+	}
+
+	ranges := set.ranges()
+	slices.SortFunc(ranges, func(a, b Range) int {
+		if c := cmp.Compare(a.from, b.from); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.to, b.to)
+	})
+
+	merged := make([]Range, 0, len(ranges))
+	for _, r := range ranges {
+		last := len(merged) - 1
+		if last >= 0 && r.from <= merged[last].to+1 {
+			merged[last].to = max(merged[last].to, r.to)
+			continue
+		}
+		merged = append(merged, r)
+	}
+
+	return merged
 }
