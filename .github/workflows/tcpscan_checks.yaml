@@ -18,38 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mocks:
-    name: Mocks up to date
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install mockery
-        run: go install github.com/vektra/mockery/v3@v3.9.1
-
-      - name: Generate mocks
-        run: task generate
-
-      - name: Check for uncommitted changes
-        run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::Mocks are outdated. Run 'task generate' and commit the changes."
-            git status --porcelain
-            git diff
-            exit 1
-          fi
-
   lint:
     name: Lint
     if: ${{ !github.event.pull_request.draft }}

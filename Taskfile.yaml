@@ -1,11 +1,6 @@
 version: '3'
 
 tasks:
-  generate:
-    desc: Generate testify mocks for interfaces listed in .mockery.yml
-    cmds:
-      - mockery
-
   lint:
     desc: Run golangci-lint on all packages (extra flags via --)
     cmds:
