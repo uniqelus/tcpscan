@@ -171,7 +171,7 @@ func TestClassifyError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, classifyError(context.Background(), tt.err))
+			assert.Equal(t, tt.want, error2state(context.Background(), tt.err))
 		})
 	}
 }
@@ -180,7 +180,7 @@ func TestClassifyError_ParentContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	assert.Equal(t, Canceled, classifyError(ctx, context.DeadlineExceeded))
+	assert.Equal(t, Canceled, error2state(ctx, context.DeadlineExceeded))
 }
 
 func TestScanner_Scan_Timeout(t *testing.T) {
