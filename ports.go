@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 )
 
@@ -20,6 +21,15 @@ func (p port) validate() error {
 type PortSet interface {
 	validate() error
 	ranges() []Range
+}
+
+func isNilPortSet(set PortSet) bool {
+	if set == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(set)
+	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
 // Port list
@@ -107,7 +117,7 @@ func (u Union) validate() error {
 
 	errs := make([]error, 0)
 	for i, set := range u {
-		if set == nil {
+		if isNilPortSet(set) {
 			errs = append(errs, fmt.Errorf("set #%d: %w", i, ErrNilPortSet))
 			continue
 		}

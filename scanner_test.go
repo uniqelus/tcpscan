@@ -74,6 +74,9 @@ func TestScanner_Scan_Validation(t *testing.T) {
 		{"empty hosts", NewHosts(), NewPorts(80), ErrEmptyHostList},
 		{"empty host", NewHosts(""), NewPorts(80), ErrEmptyHost},
 		{"nil ports", NewHosts("127.0.0.1"), nil, ErrNilPortSet},
+		{"typed nil ports", NewHosts("127.0.0.1"), (*Ports)(nil), ErrNilPortSet},
+		{"typed nil range", NewHosts("127.0.0.1"), (*Range)(nil), ErrNilPortSet},
+		{"typed nil union", NewHosts("127.0.0.1"), (*Union)(nil), ErrNilPortSet},
 		{"empty ports", NewHosts("127.0.0.1"), NewPorts(), ErrEmptyPortList},
 		{"invalid port", NewHosts("127.0.0.1"), NewPorts(0), ErrPortOutOfRange},
 		{"reversed range", NewHosts("127.0.0.1"), NewRange(100, 1), ErrReversedPortRange},
@@ -171,7 +174,7 @@ func TestClassifyError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, classifyError(context.Background(), tt.err))
+			assert.Equal(t, tt.want, error2state(context.Background(), tt.err))
 		})
 	}
 }
@@ -180,7 +183,7 @@ func TestClassifyError_ParentContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	assert.Equal(t, Canceled, classifyError(ctx, context.DeadlineExceeded))
+	assert.Equal(t, Canceled, error2state(ctx, context.DeadlineExceeded))
 }
 
 func TestScanner_Scan_Timeout(t *testing.T) {

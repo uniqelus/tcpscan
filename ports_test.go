@@ -173,6 +173,9 @@ func TestUnion_Validate(t *testing.T) {
 		},
 		{"empty union", NewUnion(), ErrEmptyPortList},
 		{"nil set", NewUnion(NewPorts(80), nil), ErrNilPortSet},
+		{"typed nil ports", NewUnion(NewPorts(80), (*Ports)(nil)), ErrNilPortSet},
+		{"typed nil range", NewUnion(NewPorts(80), (*Range)(nil)), ErrNilPortSet},
+		{"typed nil union", NewUnion(NewPorts(80), (*Union)(nil)), ErrNilPortSet},
 		{"invalid inner set", NewUnion(NewPorts(80), NewRange(100, 1)), ErrReversedPortRange},
 		{"invalid port in list", NewUnion(NewPorts(0)), ErrPortOutOfRange},
 	}

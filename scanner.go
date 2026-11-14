@@ -117,7 +117,7 @@ func (s *Scanner) Scan(ctx context.Context, hosts Hosts, set PortSet) (<-chan Re
 	if err := hosts.validate(); err != nil {
 		return nil, err
 	}
-	if set == nil {
+	if isNilPortSet(set) {
 		return nil, ErrNilPortSet
 	}
 	if err := set.validate(); err != nil {
@@ -130,76 +130,95 @@ func (s *Scanner) Scan(ctx context.Context, hosts Hosts, set PortSet) (<-chan Re
 	}
 
 	ranges := normalize(set)
-	jobs := make(chan scanJob)
-	results := make(chan Result, s.concurrency)
 
-	var workers sync.WaitGroup
-	workers.Add(s.concurrency)
-	for range s.concurrency {
-		go func() {
-			defer workers.Done()
-			for job := range jobs {
-				results <- s.scan(ctx, job.target, job.port)
-			}
-		}()
-	}
+	jobs := s.generateScanJobs(ctx, targets, ranges)
+	results := s.runScanPool(ctx, jobs)
+
+	return results, nil
+}
+
+func (s *Scanner) generateScanJobs(ctx context.Context, targets []target, ranges []Range) <-chan scanJob {
+	out := make(chan scanJob)
 
 	go func() {
-		defer close(jobs)
-		for _, target := range targets {
-			for _, portRange := range ranges {
-				for current := portRange.from; current <= portRange.to; current++ {
+		defer close(out)
+
+		for _, t := range targets {
+			for _, r := range ranges {
+				for curr := r.from; curr <= r.to; curr++ {
 					if ctx.Err() != nil {
 						return
 					}
 
 					select {
+					case out <- scanJob{target: t, port: curr}:
 					case <-ctx.Done():
 						return
-					case jobs <- scanJob{target: target, port: current}:
 					}
 				}
 			}
 		}
 	}()
 
-	go func() {
-		workers.Wait()
-		close(results)
-	}()
-
-	return results, nil
+	return out
 }
 
-func (s *Scanner) scan(ctx context.Context, target target, port port) Result {
+func (s *Scanner) runScanPool(ctx context.Context, jobs <-chan scanJob) chan Result {
+	out := make(chan Result, s.concurrency)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(s.concurrency)
+
+	for range s.concurrency {
+		go func() {
+			defer wg.Done()
+
+			for job := range jobs {
+				out <- s.scan(ctx, job)
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	return out
+}
+
+func (s *Scanner) scan(ctx context.Context, job scanJob) Result {
 	result := Result{
-		Host:  target.host,
-		IP:    target.ip,
-		Port:  uint16(port),
+		Host:  job.target.host,
+		IP:    job.target.ip,
+		Port:  uint16(job.port),
 		State: Error,
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, s.connectTimeout)
 	defer cancel()
 
-	address := net.JoinHostPort(target.ip.String(), strconv.Itoa(int(port)))
+	address := net.JoinHostPort(job.target.ip.String(), strconv.Itoa(int(job.port)))
+
 	started := time.Now()
 	conn, err := s.dial(dialCtx, "tcp", address)
 	result.Duration = time.Since(started)
+
 	if conn != nil {
 		_ = conn.Close()
 	}
+
 	if err == nil {
 		result.State = Open
 		return result
 	}
 
 	result.Err = err
-	result.State = classifyError(ctx, err)
+	result.State = error2state(ctx, err)
 	return result
 }
 
-func classifyError(ctx context.Context, err error) PortState {
+func error2state(ctx context.Context, err error) PortState {
 	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return Canceled
 	}
