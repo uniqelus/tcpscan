@@ -117,7 +117,7 @@ func (s *Scanner) Scan(ctx context.Context, hosts Hosts, set PortSet) (<-chan Re
 	if err := hosts.validate(); err != nil {
 		return nil, err
 	}
-	if set == nil {
+	if isNilPortSet(set) {
 		return nil, ErrNilPortSet
 	}
 	if err := set.validate(); err != nil {
