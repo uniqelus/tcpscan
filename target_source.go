@@ -55,7 +55,7 @@ func (ts *TargetSource) Targets(ctx context.Context) <-chan Target {
 		for _, g := range groups {
 			if !g.ip.IsValid() {
 				select {
-				case out <- Target{addr: netip.AddrPort{}, hosts: g.hosts}:
+				case out <- newTarget(netip.AddrPort{}, g.hosts):
 				case <-ctx.Done():
 					return
 				}
@@ -68,10 +68,7 @@ func (ts *TargetSource) Targets(ctx context.Context) <-chan Target {
 
 		for port := range allPorts(portRanges) {
 			for _, g := range validGroups {
-				target := Target{
-					addr:  netip.AddrPortFrom(g.ip, uint16(port)),
-					hosts: g.hosts,
-				}
+				target := newTarget(netip.AddrPortFrom(g.ip, uint16(port)), g.hosts)
 
 				select {
 				case out <- target:

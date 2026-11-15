@@ -81,7 +81,7 @@ func (s *Scanner) Scan(ctx context.Context, targets <-chan Target) <-chan Result
 }
 
 func (s *Scanner) scanTarget(ctx context.Context, target Target) []Result {
-	if !target.addr.IsValid() {
+	if !target.Addr.IsValid() {
 		return resultsForTarget(target, Error, 0, ErrInvalidAddr)
 	}
 
@@ -89,7 +89,7 @@ func (s *Scanner) scanTarget(ctx context.Context, target Target) []Result {
 	defer cancel()
 
 	started := time.Now()
-	conn, err := s.dialer.DialContext(dialCtx, "tcp", target.addr.String())
+	conn, err := s.dialer.DialContext(dialCtx, "tcp", target.Addr.String())
 	duration := time.Since(started)
 
 	if conn != nil {
@@ -105,12 +105,12 @@ func (s *Scanner) scanTarget(ctx context.Context, target Target) []Result {
 }
 
 func resultsForTarget(target Target, state State, duration time.Duration, err error) []Result {
-	results := make([]Result, len(target.hosts))
-	for i, host := range target.hosts {
+	results := make([]Result, len(target.Hosts))
+	for i, host := range target.Hosts {
 		results[i] = Result{
-			Host:     host.raw,
-			IP:       target.addr.Addr(),
-			Port:     Port(target.addr.Port()),
+			Host:     host,
+			IP:       target.Addr.Addr(),
+			Port:     Port(target.Addr.Port()),
 			State:    state,
 			Duration: duration,
 			Err:      err,

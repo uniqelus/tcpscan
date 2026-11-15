@@ -281,8 +281,20 @@ func (c *endpointCollector) build() []endpointGroup {
 }
 
 type Target struct {
-	addr  netip.AddrPort
-	hosts []host
+	Addr  netip.AddrPort
+	Hosts []string
+}
+
+func newTarget(addr netip.AddrPort, hosts []host) Target {
+	rawHosts := make([]string, len(hosts))
+	for i, h := range hosts {
+		rawHosts[i] = h.raw
+	}
+
+	return Target{
+		Addr:  addr,
+		Hosts: rawHosts,
+	}
 }
 
 type Result struct {
