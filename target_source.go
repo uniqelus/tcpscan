@@ -14,6 +14,10 @@ type TargetSource struct {
 func NewTargetSource(hostSet HostSet, portSet PortSet, opts ...TargetSourceOption) (*TargetSource, error) {
 	options := defaultTargetSourceOptions()
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, ErrNilOption
+		}
+
 		if err := opt(options); err != nil {
 			return nil, err
 		}
@@ -21,6 +25,10 @@ func NewTargetSource(hostSet HostSet, portSet PortSet, opts ...TargetSourceOptio
 
 	if err := hostSet.validate(); err != nil {
 		return nil, err
+	}
+
+	if portSet == nil {
+		return nil, ErrEmptyPortSet
 	}
 
 	if err := portSet.validate(); err != nil {

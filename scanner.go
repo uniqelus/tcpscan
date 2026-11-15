@@ -18,6 +18,10 @@ type Scanner struct {
 func NewScanner(opts ...ScannerOption) (*Scanner, error) {
 	options := defaultScannerOptions()
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, ErrNilOption
+		}
+
 		if err := opt(options); err != nil {
 			return nil, err
 		}

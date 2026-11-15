@@ -167,6 +167,10 @@ func (pu PortUnion) validate() error {
 
 	errs := make([]error, 0)
 	for _, set := range pu.sets {
+		if set == nil {
+			return ErrEmptyPortSet
+		}
+
 		if err := set.validate(); err != nil {
 			errs = append(errs, err)
 		}
