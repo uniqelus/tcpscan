@@ -12,7 +12,7 @@ A Go package for concurrent TCP Connect port scanning across one or more hosts (
 - Duplicate host and port elimination.
 - Structured results with the host, IP address, port, state, duration, and error.
 - `open`, `closed`, `timeout`, `unreachable`, `canceled`, and `error` port states.
-- No dependencies outside the Go standard library.
+- Production code depends only on the Go standard library.
 
 ## Installation
 
@@ -21,6 +21,8 @@ go get github.com/uniqelus/tcpscan
 ```
 
 The package requires Go 1.25.5 or later.
+
+Testify is used only for test assertions and generated test doubles, which keep DNS and connection tests deterministic without real network access. Mockery generates those test doubles from the package interfaces. Neither tool is used by the production code.
 
 ## Usage
 

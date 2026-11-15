@@ -13,6 +13,5 @@ var (
 	ErrEmptyHostSet      = errors.New("empty host set")
 	ErrIllegalOption     = errors.New("illegal option")
 	ErrNilOption         = errors.New("nil option")
-	ErrNoAddresses       = errors.New("no addresses returned")
 	ErrInvalidAddr       = errors.New("no valid IP addresses parsed")
 )
