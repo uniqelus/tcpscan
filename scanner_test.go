@@ -20,8 +20,8 @@ func TestNew(t *testing.T) {
 	scanner, err := New()
 	require.NoError(t, err)
 
-	assert.Equal(t, defaultConcurrency, scanner.concurrency)
-	assert.Equal(t, defaultConnectTimeout, scanner.connectTimeout)
+	assert.Equal(t, DefaultConcurrency, scanner.concurrency)
+	assert.Equal(t, DefaultConnectTimeout, scanner.connectTimeout)
 	assert.NotNil(t, scanner.lookup)
 	assert.NotNil(t, scanner.dial)
 }
@@ -37,7 +37,7 @@ func TestNew_Options(t *testing.T) {
 func TestNew_InvalidOptions(t *testing.T) {
 	tests := []struct {
 		name    string
-		option  Option
+		option  ScannerOption
 		wantErr error
 	}{
 		{"zero concurrency", WithConcurrency(0), ErrInvalidConcurrency},
