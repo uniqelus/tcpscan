@@ -1,10 +1,6 @@
 package tcpscan
 
-import "time"
-
 const (
-	MinPort               port          = 1
-	MaxPort               port          = 65535
-	DefaultConcurrency    int           = 100
-	DefaultConnectTimeout time.Duration = 2 * time.Second
+	MinPort Port = 1
+	MaxPort Port = 65535
 )
