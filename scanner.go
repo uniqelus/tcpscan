@@ -3,168 +3,39 @@ package tcpscan
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
-	"net/netip"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
 )
 
-const (
-	defaultConcurrency    = 100
-	defaultConnectTimeout = 2 * time.Second
-)
-
-// PortState describes the outcome of a TCP connection attempt.
-type PortState string
-
-const (
-	// Open means that a TCP connection was established.
-	Open PortState = "open"
-	// Closed means that the target explicitly refused the connection.
-	Closed PortState = "closed"
-	// Timeout means that the connection attempt exceeded the configured timeout.
-	Timeout PortState = "timeout"
-	// Unreachable means that the target host or network was unreachable.
-	Unreachable PortState = "unreachable"
-	// Canceled means that the connection attempt was canceled through its context.
-	Canceled PortState = "canceled"
-	// Error means that the connection attempt failed for another reason.
-	Error PortState = "error"
-)
-
-// Result contains the outcome of scanning one port on one resolved address.
-type Result struct {
-	Host     string
-	IP       netip.Addr
-	Port     uint16
-	State    PortState
-	Duration time.Duration
-	Err      error
-}
-
-// Option configures a Scanner.
-type Option func(*Scanner) error
-
-// WithConcurrency sets the maximum number of simultaneous connection attempts.
-func WithConcurrency(concurrency int) Option {
-	return func(s *Scanner) error {
-		if concurrency < 1 {
-			return fmt.Errorf("%w: %d", ErrInvalidConcurrency, concurrency)
-		}
-
-		s.concurrency = concurrency
-		return nil
-	}
-}
-
-// WithConnectTimeout sets the timeout for each individual connection attempt.
-func WithConnectTimeout(timeout time.Duration) Option {
-	return func(s *Scanner) error {
-		if timeout <= 0 {
-			return fmt.Errorf("%w: %s", ErrInvalidConnectTimeout, timeout)
-		}
-
-		s.connectTimeout = timeout
-		return nil
-	}
-}
-
-type dialContextFunc func(ctx context.Context, network, address string) (net.Conn, error)
-
-// Scanner performs concurrent TCP Connect scans. It is safe for concurrent use.
 type Scanner struct {
 	concurrency    int
 	connectTimeout time.Duration
-	lookup         lookupFunc
-	dial           dialContextFunc
+	dialer         Dialer
 }
 
-// New creates a Scanner with the supplied options.
-func New(options ...Option) (*Scanner, error) {
-	s := &Scanner{
-		concurrency:    defaultConcurrency,
-		connectTimeout: defaultConnectTimeout,
-		lookup:         net.DefaultResolver.LookupHost,
-		dial:           (&net.Dialer{}).DialContext,
-	}
-
-	for i, option := range options {
-		if option == nil {
-			return nil, fmt.Errorf("option #%d: %w", i, ErrNilOption)
+func NewScanner(opts ...ScannerOption) (*Scanner, error) {
+	options := defaultScannerOptions()
+	for _, opt := range opts {
+		if opt == nil {
+			return nil, ErrNilOption
 		}
-		if err := option(s); err != nil {
-			return nil, fmt.Errorf("option #%d: %w", i, err)
+
+		if err := opt(options); err != nil {
+			return nil, err
 		}
 	}
 
-	return s, nil
+	return &Scanner{
+		concurrency:    options.concurrency,
+		connectTimeout: options.connectTimeout,
+		dialer:         options.dialer,
+	}, nil
 }
 
-type scanJob struct {
-	target target
-	port   port
-}
-
-// Scan resolves hosts and starts scanning ports. Validation and resolution
-// errors are returned synchronously. The result channel is closed after all
-// started connection attempts finish. After context cancellation no new jobs
-// are scheduled; results for already started attempts have state Canceled when
-// their dial reports context cancellation.
-func (s *Scanner) Scan(ctx context.Context, hosts Hosts, set PortSet) (<-chan Result, error) {
-	if err := hosts.validate(); err != nil {
-		return nil, err
-	}
-	if isNilPortSet(set) {
-		return nil, ErrNilPortSet
-	}
-	if err := set.validate(); err != nil {
-		return nil, err
-	}
-
-	targets, err := hosts.resolve(ctx, s.lookup)
-	if err != nil {
-		return nil, err
-	}
-
-	ranges := normalize(set)
-
-	jobs := s.generateScanJobs(ctx, targets, ranges)
-	results := s.runScanPool(ctx, jobs)
-
-	return results, nil
-}
-
-func (s *Scanner) generateScanJobs(ctx context.Context, targets []target, ranges []Range) <-chan scanJob {
-	out := make(chan scanJob)
-
-	go func() {
-		defer close(out)
-
-		for _, t := range targets {
-			for _, r := range ranges {
-				for curr := r.from; curr <= r.to; curr++ {
-					if ctx.Err() != nil {
-						return
-					}
-
-					select {
-					case out <- scanJob{target: t, port: curr}:
-					case <-ctx.Done():
-						return
-					}
-				}
-			}
-		}
-	}()
-
-	return out
-}
-
-func (s *Scanner) runScanPool(ctx context.Context, jobs <-chan scanJob) chan Result {
-	out := make(chan Result, s.concurrency)
+func (s *Scanner) Scan(ctx context.Context, targets <-chan Target) <-chan Result {
+	out := make(chan Result)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(s.concurrency)
@@ -173,9 +44,31 @@ func (s *Scanner) runScanPool(ctx context.Context, jobs <-chan scanJob) chan Res
 		go func() {
 			defer wg.Done()
 
-			for job := range jobs {
-				out <- s.scan(ctx, job)
+			for {
+				select {
+				case target, ok := <-targets:
+					if !ok {
+						return
+					}
+
+					if ctx.Err() != nil {
+						return
+					}
+
+					results := s.scanTarget(ctx, target)
+					for _, result := range results {
+						select {
+						case out <- result:
+						case <-ctx.Done():
+							return
+						}
+					}
+
+				case <-ctx.Done():
+					return
+				}
 			}
+
 		}()
 	}
 
@@ -187,38 +80,47 @@ func (s *Scanner) runScanPool(ctx context.Context, jobs <-chan scanJob) chan Res
 	return out
 }
 
-func (s *Scanner) scan(ctx context.Context, job scanJob) Result {
-	result := Result{
-		Host:  job.target.host,
-		IP:    job.target.ip,
-		Port:  uint16(job.port),
-		State: Error,
+func (s *Scanner) scanTarget(ctx context.Context, target Target) []Result {
+	if !target.Addr.IsValid() {
+		return resultsForTarget(target, Error, 0, ErrInvalidAddr)
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, s.connectTimeout)
 	defer cancel()
 
-	address := net.JoinHostPort(job.target.ip.String(), strconv.Itoa(int(job.port)))
-
 	started := time.Now()
-	conn, err := s.dial(dialCtx, "tcp", address)
-	result.Duration = time.Since(started)
+	conn, err := s.dialer.DialContext(dialCtx, "tcp", target.Addr.String())
+	duration := time.Since(started)
 
 	if conn != nil {
 		_ = conn.Close()
 	}
 
-	if err == nil {
-		result.State = Open
-		return result
+	state := Open
+	if err != nil {
+		state = classifyError(ctx, err)
 	}
 
-	result.Err = err
-	result.State = error2state(ctx, err)
-	return result
+	return resultsForTarget(target, state, duration, err)
 }
 
-func error2state(ctx context.Context, err error) PortState {
+func resultsForTarget(target Target, state State, duration time.Duration, err error) []Result {
+	results := make([]Result, len(target.Hosts))
+	for i, host := range target.Hosts {
+		results[i] = Result{
+			Host:     host,
+			IP:       target.Addr.Addr(),
+			Port:     Port(target.Addr.Port()),
+			State:    state,
+			Duration: duration,
+			Err:      err,
+		}
+	}
+
+	return results
+}
+
+func classifyError(ctx context.Context, err error) State {
 	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return Canceled
 	}
